@@ -50,12 +50,12 @@ int main(int argc, char *argv[])
 
     pipem[0] = atoi(argv[2]);
     pipem[1] = atoi(argv[3]);
-    ofstream output1(argv[1], ios_base::out);
-
+    ofstream output2(argv[1], ios_base::out);
+    close(pipem[1]);
     sigwait(sig, &sigptr2);
     if ((read(pipem[0], pid, 8)) == -1)
     {
-        cerr << "Can't read from the channel! Exiting..." << endl;
+        cerr << "Channel is empty! Exiting..." << endl;
         return -1;
     }
     else
@@ -71,18 +71,19 @@ int main(int argc, char *argv[])
         cout << "Started 2" << endl;
         if ((bytesread = read(pipem[0], text, 1)) == -1)
         {
-            cerr << "Can't read from the channel! Exiting..." << endl;
+            cerr << "Channel is empty! Exiting..." << endl;
+            kill(pid1, SIGTERM);
             return -1;
         }
         else
         {
             cout << text << endl;
-            output1 << text << endl;
+            output2 << text << endl;
         }
         cout << "Kill 1" << endl;
         kill(pid1, SIGUSR1);
     } 
     while (bytesread != 0);
-    
+    output2.close();
     return 0;
 }

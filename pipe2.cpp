@@ -101,7 +101,6 @@ int main(int argc, char const *argv[])
     {
         string str;
         getline(input1, str);
-        cout << str;
         strcpy(buff, str.c_str());
         int length = str.length();
         if((buffsize = write(pipem[1], &buff, length)) != length)
@@ -120,7 +119,7 @@ int main(int argc, char const *argv[])
     {
         waitpid(forkPID[i], &status[i], 0);
     }
-    cout << "Going to finish!" << endl;
+    cout << "Main programm: Finishing!" << endl;
     for (int i = 0; i < 2; i++)
     {
         if (close(pipem[i]) == -1)
