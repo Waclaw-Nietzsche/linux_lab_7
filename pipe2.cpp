@@ -14,25 +14,46 @@ using namespace std;
 
 void sSIGUSR1(int signal)
 {
-    cout << "SIGUSR1" << endl;
+    cout << "Main: SIGUSR1" << endl;
 }
 
 void sSIGUSR2(int signal)
 {
-    cout << "SIGUSR2" << endl;
+    cout << "Main: SIGUSR2" << endl;
+}
+
+void sSIGQUIT(int signal)
+{
+    cout << "Main: SIGQUIT" << endl;
+}
+
+void sSIGTERM(int signal)
+{
+    cout << "Main: SIGTERM" << endl;
 }
 
 int main(int argc, char const *argv[])
 {
     int pipem[2], status[2];
     pid_t forkPID[2];
-    char buff[256], pipem0[8], pipem1[8], pid1[8], pid2[8];
+    char buff[256], pipem0[8], pipem1[8];
     ssize_t buffsize;
-
-    struct sigaction sig1, sig2;
+    
+    sigset_t *sig = NULL;
+    siginfo_t info;
+    int sigptr = SIGTERM;
+    sigemptyset(sig);
+    sigaddset(sig, sigptr);
+    sigprocmask(SIG_BLOCK, sig, NULL);
+    
+    struct sigaction sig1, sig2, sig3, sig4;
     sig1.sa_handler = sSIGUSR1;
     sig2.sa_handler = sSIGUSR2;
-    
+    sig3.sa_handler = sSIGQUIT;
+    sig4.sa_handler = sSIGTERM;
+
+    cout << "Main: My group is: " << getpgid(getpid()) << endl;
+
     if (sigaction(SIGUSR1, &sig1, NULL) == -1)
     {
         cerr << "Can't handle with SIGUSR1!" << endl;
@@ -41,10 +62,18 @@ int main(int argc, char const *argv[])
     {
         cerr << "Can't handle with SIGUSR2!" << endl;
     }
+    if (sigaction(SIGQUIT, &sig3, NULL) == -1)
+    {
+        cerr << "Can't handle with SIGUSR2!" << endl;
+    }
+    if (sigaction(SIGTERM, &sig4, NULL) == -1)
+    {
+        cerr << "Can't handle with SIGUSR2!" << endl;
+    }
 
     if (pipe(pipem) == 0)
     {
-        cout << "Channel is opened." << endl;
+        cout << "Main: Channel is opened." << endl;
         const int flags = fcntl(pipem[0], F_GETFL, 0);
         fcntl(pipem[0], F_SETFL, flags | O_NONBLOCK);
         snprintf(pipem0, sizeof(pipem0), "%d", pipem[0]);
@@ -55,7 +84,6 @@ int main(int argc, char const *argv[])
         cerr << "Can't open pipe! Exiting..." << endl;
         return -1;
     }
-
     for (int i = 0; i < 2; i++)
     {
         if ((forkPID[i] = fork()) == 0)
@@ -75,27 +103,8 @@ int main(int argc, char const *argv[])
             cerr << "Can't create fork! Exiting..." << endl;
             exit(1);
         }
-    } 
-    snprintf(pid1, sizeof(pid1), "%d", forkPID[0]);
-    snprintf(pid2, sizeof(pid2), "%d", forkPID[1]);
-    if((write(pipem[1], &pid2, 8)) != 8)
-    {
-        cerr << "Can't write full length!" << endl;
-        return -1;
-    } 
-    if((write(pipem[1], &pid1, 8)) != 8)
-    {
-        cerr << "Can't write full length!" << endl;
-        return -1;
-    } 
-    sleep(1);
-    for (int i = 0; i < 2; i++)
-    {
-        kill(forkPID[i], SIGQUIT);
-        sleep(1);
     }
-    
-
+    //sleep(1);
     ifstream input1(argv[1], ios_base::in);
     while(!input1.eof())
     {
@@ -109,17 +118,19 @@ int main(int argc, char const *argv[])
             return -1;
         } 
     }
-    for (int i = 0; i < 2; i++)
-    {
-        kill(forkPID[i], SIGQUIT);
-        sleep(1);
-    }
-    kill(forkPID[0], SIGUSR1);
+    cout << "Main: Reading finished!" << endl;
+    //sleep(1);
+    //kill(0, SIGQUIT);
+    //sleep(1);
+    //kill(0, SIGUSR1);
+    sigwaitinfo(sig, &info);
+    //sigsuspend(sig);
+    //sleep(2);
     for (int i = 0; i < 2; i++)
     {
         waitpid(forkPID[i], &status[i], 0);
     }
-    cout << "Main programm: Finishing!" << endl;
+    cout << "Main: Finishing!" << endl;
     for (int i = 0; i < 2; i++)
     {
         if (close(pipem[i]) == -1)
@@ -129,5 +140,6 @@ int main(int argc, char const *argv[])
         }
     }
     input1.close();
+    cout << "Main: Finished!" << endl;
     return 0;
 }

@@ -5,74 +5,81 @@
 #include <string>
 #include <sys/wait.h>
 #include <cstring>
+#include <signal.h>
 
 using namespace std;
 
-void sSIGUSR1(int signal)
+void ssSIGUSR1(int signal)
 {
-    cout << "SIGUSR1" << endl;
+    cout << "Fork1: SIGUSR1" << endl;
 }
 
-void sSIGUSR2(int signal)
+void ssSIGUSR2(int signal)
 {
-    cout << "SIGUSR2" << endl;
+    cout << "Fork1: SIGUSR2" << endl;
+}
+
+void ssSIGQUIT(int signal)
+{
+    cout << "Fork1: SIGQUIT" << endl;
 }
 
 /* Параметры: входной файл №1, дескриптор канала 1, 2 */
 int main(int argc, char *argv[])
 {
-    cout << "I am fork 1!" << endl;
-    pid_t pid2;
+    cout << "Fork1: I am fork 1!" << endl;
+    //cout << "Fork1: My group is: " << getpgid(getpid()) << endl;
     int check = 0, bytesread = 0;
-    sigset_t *sig;
-    int sigptr1 = SIGUSR1;
-    int sigptr2 = SIGQUIT;
-    sigemptyset(sig);
-    sigaddset(sig, sigptr1);
-    sigaddset(sig, sigptr2);
+    sigset_t *ssig = NULL;
+    int ssigptr1 = SIGUSR1;
+    int ssigptr2 = SIGQUIT;
+    siginfo_t info;
+    sigemptyset(ssig);
+    sigaddset(ssig, ssigptr2);
+    sigprocmask(SIG_BLOCK, ssig, NULL);
 
-    struct sigaction sig1, sig2;
-    sig1.sa_handler = sSIGUSR1;
-    sig2.sa_handler = sSIGUSR2;
+    struct sigaction ssig1, ssig2, ssig3;
+    ssig1.sa_handler = ssSIGUSR1;
+    ssig2.sa_handler = ssSIGUSR2;
+    ssig3.sa_handler = ssSIGQUIT;
 
     int pipem[2];
-    char buff[256], text[256], pid[8];
+    char buff[256], text[256];
     ssize_t buffsize;
     
+    if (sigaction(SIGUSR1, &ssig1, NULL) == -1)
+    {
+        cerr << "Can't handle with SIGUSR1!" << endl;
+    }
+    if (sigaction(SIGUSR2, &ssig2, NULL) == -1)
+    {
+        cerr << "Can't handle with SIGUSR2!" << endl;
+    }
+    if (sigaction(SIGQUIT, &ssig3, NULL) == -1)
+    {
+        cerr << "Can't handle with SIGUSR2!" << endl;
+    }
+    sigwaitinfo(ssig, &info);
+    //pause();
+    //sigsuspend(ssig);
+    sigaddset(ssig, ssigptr1);
+    sigdelset(ssig, ssigptr2);
+    sigprocmask(SIG_BLOCK, ssig, NULL);
     pipem[0] = atoi(argv[2]);
     pipem[1] = atoi(argv[3]);
     ofstream output1(argv[1], ios_base::out);
     close(pipem[1]);
-    if (sigaction(SIGUSR1, &sig1, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR1!" << endl;
-    }
-    if (sigaction(SIGUSR2, &sig2, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR2!" << endl;
-    }
-
-    sigwait(sig, &sigptr2);
-    if ((read(pipem[0], pid, 8)) == -1)
-    {
-        cerr << "Channel is empty! Exiting..." << endl;
-        return -1;
-    }
-    else
-    {
-        string str = pid;
-        pid2 = stoi(str);
-        cout << "child1:PID_USR2 is " << pid2 << endl;
-    }
-    sigwait(sig, &sigptr2);
     do
     {
-        sigwait(sig, &sigptr1);
-        cout << "Started 1" << endl;
+        sigwaitinfo(ssig, &info);
+        //pause();
+        //sigsuspend(ssig);
+        cout << "Fork1: Started 1" << endl;
+
         if ((bytesread = read(pipem[0], text, 1)) == -1)
         {
-            cerr << "Channel is empty! Exiting..." << endl;
-            kill(pid2, SIGTERM);
+            cerr << "Fork1: Channel is empty! Exiting..." << endl;
+            kill(0, SIGTERM);
             return -1;
         }
         else
@@ -80,8 +87,9 @@ int main(int argc, char *argv[])
             cout << text << endl;
             output1 << text << endl;
         }
-        cout << "Kill 2" << endl;
-        kill(pid2, SIGUSR2);
+
+        cout << "Fork1: Kill 2" << endl;
+        kill(getppid(), SIGUSR2);
     } 
     while (bytesread != 0);
     output1.close();
