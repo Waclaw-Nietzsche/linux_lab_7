@@ -32,6 +32,7 @@ void sSIGTERM(int signal)
     cout << "Main: SIGTERM" << endl;
 }
 
+/* Параметры: откуда читает.тхт кудапишет1.тхт кудапишет2.тхт */
 int main(int argc, char const *argv[])
 {
     int pipem[2], status[2];
@@ -54,22 +55,10 @@ int main(int argc, char const *argv[])
 
     cout << "Main: My group is: " << getpgid(getpid()) << endl;
 
-    if (sigaction(SIGUSR1, &sig1, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR1!" << endl;
-    }
-    if (sigaction(SIGUSR2, &sig2, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR2!" << endl;
-    }
-    if (sigaction(SIGQUIT, &sig3, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR2!" << endl;
-    }
-    if (sigaction(SIGTERM, &sig4, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR2!" << endl;
-    }
+    signal(SIGUSR1, &sSIGUSR1);
+    signal(SIGUSR2, &sSIGUSR2);
+    signal(SIGQUIT, &sSIGQUIT);
+    signal(SIGTERM, &sSIGTERM);
 
     if (pipe(pipem) == 0)
     {
@@ -84,6 +73,24 @@ int main(int argc, char const *argv[])
         cerr << "Can't open pipe! Exiting..." << endl;
         return -1;
     }
+
+    ifstream input1(argv[1], ios_base::in);
+    while(!input1.eof())
+    {
+        string str;
+        getline(input1, str);
+        strcpy(buff, str.c_str());
+        int length = str.length();
+        if((buffsize = write(pipem[1], &buff, length)) != length)
+        {
+            cerr << "Can't write full length!" << endl;
+            return -1;
+        }
+        cout << buff; 
+    }
+    cout << endl;
+    cout << "Main: Reading finished!" << endl;
+
     for (int i = 0; i < 2; i++)
     {
         if ((forkPID[i] = fork()) == 0)
@@ -104,28 +111,11 @@ int main(int argc, char const *argv[])
             exit(1);
         }
     }
-    //sleep(1);
-    ifstream input1(argv[1], ios_base::in);
-    while(!input1.eof())
-    {
-        string str;
-        getline(input1, str);
-        strcpy(buff, str.c_str());
-        int length = str.length();
-        if((buffsize = write(pipem[1], &buff, length)) != length)
-        {
-            cerr << "Can't write full length!" << endl;
-            return -1;
-        } 
-    }
-    cout << "Main: Reading finished!" << endl;
-    //sleep(1);
-    //kill(0, SIGQUIT);
-    //sleep(1);
-    //kill(0, SIGUSR1);
-    sigwaitinfo(sig, &info);
-    //sigsuspend(sig);
-    //sleep(2);
+    sleep(1);
+    kill(0,SIGQUIT);
+    sleep(1);
+    kill(forkPID[0],SIGUSR1);
+    
     for (int i = 0; i < 2; i++)
     {
         waitpid(forkPID[i], &status[i], 0);

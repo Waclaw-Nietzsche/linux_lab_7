@@ -28,58 +28,42 @@ void ssSIGQUIT(int signal)
 int main(int argc, char *argv[])
 {
     cout << "Fork1: I am fork 1!" << endl;
-    //cout << "Fork1: My group is: " << getpgid(getpid()) << endl;
+    int pipem[2];
+    char buff[256], text[256];
+    ssize_t buffsize;
+
+    pipem[0] = atoi(argv[2]);
+    pipem[1] = atoi(argv[3]);
     int check = 0, bytesread = 0;
     sigset_t *ssig = NULL;
     int ssigptr1 = SIGUSR1;
     int ssigptr2 = SIGQUIT;
+    int sigcaught;
     siginfo_t info;
     sigemptyset(ssig);
     sigaddset(ssig, ssigptr2);
     sigprocmask(SIG_BLOCK, ssig, NULL);
 
-    struct sigaction ssig1, ssig2, ssig3;
-    ssig1.sa_handler = ssSIGUSR1;
-    ssig2.sa_handler = ssSIGUSR2;
-    ssig3.sa_handler = ssSIGQUIT;
+    signal(SIGUSR1, &ssSIGUSR1);
+    signal(SIGUSR2, &ssSIGUSR2);
+    signal(SIGQUIT, &ssSIGQUIT);
 
-    int pipem[2];
-    char buff[256], text[256];
-    ssize_t buffsize;
-    
-    if (sigaction(SIGUSR1, &ssig1, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR1!" << endl;
-    }
-    if (sigaction(SIGUSR2, &ssig2, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR2!" << endl;
-    }
-    if (sigaction(SIGQUIT, &ssig3, NULL) == -1)
-    {
-        cerr << "Can't handle with SIGUSR2!" << endl;
-    }
-    sigwaitinfo(ssig, &info);
-    //pause();
-    //sigsuspend(ssig);
+    pause();
+    sigemptyset(ssig);
     sigaddset(ssig, ssigptr1);
-    sigdelset(ssig, ssigptr2);
-    sigprocmask(SIG_BLOCK, ssig, NULL);
-    pipem[0] = atoi(argv[2]);
-    pipem[1] = atoi(argv[3]);
+
     ofstream output1(argv[1], ios_base::out);
     close(pipem[1]);
     do
     {
-        sigwaitinfo(ssig, &info);
-        //pause();
-        //sigsuspend(ssig);
+        pause();
         cout << "Fork1: Started 1" << endl;
-
+        
         if ((bytesread = read(pipem[0], text, 1)) == -1)
         {
             cerr << "Fork1: Channel is empty! Exiting..." << endl;
             kill(0, SIGTERM);
+            sleep(1);
             return -1;
         }
         else
@@ -89,7 +73,7 @@ int main(int argc, char *argv[])
         }
 
         cout << "Fork1: Kill 2" << endl;
-        kill(getppid(), SIGUSR2);
+        kill(0, SIGUSR2);
     } 
     while (bytesread != 0);
     output1.close();
